@@ -1,0 +1,4 @@
+aws_region = 
+aws_instance_ami_id = 
+aws_instance_type = 
+tailscale_auth_key = 
