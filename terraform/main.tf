@@ -12,9 +12,8 @@ provider "aws" {
   profile = "dhruv-dev"
 }
 
-
 resource "aws_instance" "ts-exit-node-uae" {
-  ami = var.aws_instance_ami_id
+  ami = lookup(var.aws_instance_ami_id, var.aws_region, "")
   instance_type = var.aws_instance_type
   associate_public_ip_address = true
   
