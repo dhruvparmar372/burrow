@@ -13,4 +13,4 @@ sysctl -p /etc/sysctl.conf
 
 # install tailscale
 curl -fsSL https://tailscale.com/install.sh | sh
-tailscale up --authkey ${tailscale_auth_key} --advertise-exit-node --hostname=${tailscale_hostname}
+tailscale up --authkey ${tailscale_auth_key} --advertise-exit-node --advertise-tags=tag:scaletails --hostname=${tailscale_hostname}
