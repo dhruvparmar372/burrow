@@ -8,11 +8,23 @@ Replace the current Makefile-based workflow with a Bun + TypeScript CLI that man
 
 The current setup stores Terraform state in a single local directory. Deploying to a second region overwrites the first region's state, making it impossible to run multiple exit nodes simultaneously. Additionally, credentials are managed via `.env` files and the AWS provider block hardcodes a profile name.
 
+## Interactive vs Non-Interactive Modes
+
+All commands support two modes:
+
+- **Interactive** (default): Prompts, confirmations, human-readable table output.
+- **Non-interactive** (`--json` flag): All inputs via flags/args, no prompts, JSON output to stdout, non-zero exit codes on errors.
+
+In non-interactive mode:
+- Success output is a JSON object to stdout.
+- Errors output as `{"error": "message"}` to stderr with a non-zero exit code.
+- Terraform output is still streamed to stderr so the agent can capture structured results from stdout while still seeing Terraform progress.
+
 ## Commands
 
 ### `scaletails config`
 
-Interactive wizard that configures credentials. Stored in `nodes/config.json` (gitignored).
+**Interactive mode** (default): Wizard that prompts for credentials.
 
 Flow:
 1. Prompt for Tailscale Auth Key
@@ -21,6 +33,26 @@ Flow:
    - **AWS:** Access Key ID + Secret Access Key, or select "Use ambient credentials" to skip explicit keys and let Terraform use the default AWS credential chain (env vars, `~/.aws/credentials`, SSO, etc.)
 
 Running again updates existing values or adds new providers.
+
+**Non-interactive mode:** Two approaches, can be combined:
+
+1. **Flags** for individual values:
+   ```
+   scaletails config --tailscale-auth-key tskey-auth-xxx --aws-access-key-id AKIA... --aws-secret-access-key ... --json
+   ```
+   Partial updates are allowed — only the provided values are updated. Omitted values are left unchanged.
+
+2. **File import** for bulk configuration:
+   ```
+   scaletails config --from-file /path/to/config.json --json
+   ```
+   The file must match the `nodes/config.json` schema. The entire config is replaced.
+
+Flags take precedence over `--from-file` if both are provided (file is loaded first, then flags override).
+
+Validation runs in both modes: auth key format, non-empty credentials, etc. Errors are returned as JSON with non-zero exit code.
+
+Output on success: `{"status": "ok", "configPath": "nodes/config.json"}`
 
 ### `scaletails add --provider <provider> --region <region>`
 
@@ -36,11 +68,13 @@ Steps:
 7. Run `terraform apply`. If apply fails, leave the directory and state in place for debugging (partial applies may have created real resources).
 8. On success, add entry to `nodes/manifest.json`.
 
-Optional `--auto-approve` flag to skip Terraform's confirmation prompt.
+Flags:
+- `--auto-approve` — skip Terraform's confirmation prompt (required for non-interactive use).
+- `--json` — output result as JSON: `{"status": "ok", "provider": "aws", "region": "ap-south-1", "directory": "aws-ap-south-1"}`
 
 ### `scaletails list`
 
-Reads `nodes/manifest.json` and prints a table:
+**Interactive mode:** Prints a human-readable table:
 
 ```
 PROVIDER  REGION        CREATED
@@ -49,6 +83,12 @@ aws       me-central-1  2026-03-22 11:15 UTC
 ```
 
 If no nodes exist, prints: `"No active exit nodes."`
+
+**Non-interactive mode** (`--json`): Outputs the manifest as JSON:
+
+```json
+{"nodes": [{"provider": "aws", "region": "ap-south-1", "directory": "aws-ap-south-1", "createdAt": "2026-03-22T10:30:00Z"}]}
+```
 
 ### `scaletails remove --provider <provider> --region <region>`
 
@@ -60,11 +100,13 @@ Steps:
 3. On success, remove entry from manifest and delete the node directory.
 4. On failure, leave everything in place for debugging.
 
-Optional `--auto-approve` flag.
+Flags:
+- `--auto-approve` — skip Terraform's confirmation prompt.
+- `--json` — output result as JSON: `{"status": "ok", "provider": "aws", "region": "ap-south-1"}`
 
 ### `scaletails remove --all`
 
-Tears down all active exit nodes sequentially. Prompts for confirmation before proceeding (unless `--auto-approve` is passed).
+Tears down all active exit nodes sequentially. Prompts for confirmation before proceeding (unless `--auto-approve` is passed). With `--json`, outputs an array of results per node.
 
 ## Project Structure
 
