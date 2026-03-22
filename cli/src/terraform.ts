@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from "fs";
 import { getNodesDir } from "./config";
 import type { AwsProviderConfig } from "./config";
 
-// Supported regions per provider — must match the AMI map in the Terraform module
+// Supported regions per provider — must match the AMI map in the embedded terraform
 const SUPPORTED_REGIONS: Record<string, string[]> = {
   aws: ["ap-south-1", "me-central-1"],
 };
@@ -12,7 +12,14 @@ export function getSupportedRegions(provider: string): string[] {
   return SUPPORTED_REGIONS[provider] ?? [];
 }
 
-export function generateAwsRootConfig(region: string): string {
+// ---------------------------------------------------------------------------
+// Embedded Terraform templates for AWS exit nodes
+// ---------------------------------------------------------------------------
+// These were previously in modules/aws-exit-node/. Embedding them makes the
+// CLI fully self-contained — no external module references needed.
+// ---------------------------------------------------------------------------
+
+function generateAwsMainTf(region: string): string {
   return `terraform {
   required_providers {
     aws = {
@@ -26,18 +33,112 @@ provider "aws" {
   region = "${region}"
 }
 
-module "exit_node" {
-  source = "../../modules/aws-exit-node"
-
-  aws_region         = "${region}"
-  tailscale_auth_key = var.tailscale_auth_key
-}
-
 variable "tailscale_auth_key" {
   type      = string
   sensitive = true
+
+  validation {
+    condition     = length(var.tailscale_auth_key) > 0
+    error_message = "Tailscale Auth Key is required."
+  }
+}
+
+variable "aws_instance_ami_id" {
+  type = map(string)
+  default = {
+    "ap-south-1"   = "ami-007020fd9c84e18c7"
+    "me-central-1" = "ami-04c9a1a3a1cdc1655"
+  }
+}
+
+variable "aws_instance_type" {
+  type    = string
+  default = "t3.nano"
+}
+
+resource "aws_iam_role" "ec2_ssm_role" {
+  name = "ec2-ssm-role-${region}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_policy_attachment" {
+  role       = aws_iam_role.ec2_ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ec2_ssm_instance_profile" {
+  name = "ec2-ssm-instance-profile-${region}"
+  role = aws_iam_role.ec2_ssm_role.name
+}
+
+resource "aws_instance" "ts_exit_node" {
+  ami                         = lookup(var.aws_instance_ami_id, "${region}", "")
+  instance_type               = var.aws_instance_type
+  associate_public_ip_address = true
+
+  iam_instance_profile = aws_iam_instance_profile.ec2_ssm_instance_profile.name
+
+  metadata_options {
+    http_tokens = "required"
+  }
+
+  user_data = templatefile("\${path.module}/user_data.tftpl", {
+    tailscale_auth_key = var.tailscale_auth_key,
+    tailscale_hostname = "TSExitNode-${region}"
+  })
+
+  tags = {
+    Name = "TSExitNode-${region}"
+  }
+}
+
+output "instance_id" {
+  value = aws_instance.ts_exit_node.id
+}
+
+output "public_ip" {
+  value = aws_instance.ts_exit_node.public_ip
 }
 `;
+}
+
+const AWS_USER_DATA_TFTPL = `#!/bin/bash
+
+# install & start ssm agent on ubuntu
+sudo apt-get update
+sudo snap install amazon-ssm-agent --classic
+sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+sudo systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+# enable ip forwarding
+echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.conf
+echo 'net.ipv6.conf.all.forwarding = 1' | sudo tee -a /etc/sysctl.conf
+sysctl -p /etc/sysctl.conf
+
+# install tailscale
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up --authkey \${tailscale_auth_key} --advertise-exit-node --advertise-tags=tag:scaletails --hostname=\${tailscale_hostname}`;
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export function generateAwsTerraformFiles(region: string): Record<string, string> {
+  return {
+    "main.tf": generateAwsMainTf(region),
+    "user_data.tftpl": AWS_USER_DATA_TFTPL,
+  };
 }
 
 export function checkTerraformInstalled(): boolean {
@@ -108,8 +209,10 @@ export function createNodeDirectory(provider: string, region: string, nodesDir?:
   return nodeDir;
 }
 
-export function writeRootConfig(nodeDir: string, hcl: string): void {
-  writeFileSync(join(nodeDir, "main.tf"), hcl);
+export function writeTerraformFiles(nodeDir: string, files: Record<string, string>): void {
+  for (const [filename, content] of Object.entries(files)) {
+    writeFileSync(join(nodeDir, filename), content);
+  }
 }
 
 export function cleanupNodeDirectory(nodeDir: string): void {

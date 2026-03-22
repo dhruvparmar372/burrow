@@ -1,14 +1,14 @@
 // cli/src/commands/add.ts
 import { Command } from "commander";
-import { loadConfig, getNodesDir } from "../config";
+import { loadConfig } from "../config";
 import type { AwsProviderConfig } from "../config";
 import { loadManifest, saveManifest, addNode, findNode } from "../manifest";
 import {
   checkTerraformInstalled,
   getSupportedRegions,
-  generateAwsRootConfig,
+  generateAwsTerraformFiles,
   createNodeDirectory,
-  writeRootConfig,
+  writeTerraformFiles,
   cleanupNodeDirectory,
   runTerraform,
   buildAwsEnvVars,
@@ -57,16 +57,16 @@ export function createAddCommand(): Command {
         exitWithError(`Exit node already exists: ${provider}/${region}`, json);
       }
 
-      // 6. Generate root config
-      let hcl: string;
+      // 6. Generate terraform files
+      let tfFiles: Record<string, string>;
       if (provider === "aws") {
-        hcl = generateAwsRootConfig(region);
+        tfFiles = generateAwsTerraformFiles(region);
       } else {
         exitWithError(`Provider '${provider}' is not yet implemented.`, json);
       }
 
       const nodeDir = createNodeDirectory(provider, region);
-      writeRootConfig(nodeDir, hcl);
+      writeTerraformFiles(nodeDir, tfFiles);
 
       // 7. Build env vars
       const envVars = provider === "aws" ? buildAwsEnvVars(providerConfig as AwsProviderConfig) : {};

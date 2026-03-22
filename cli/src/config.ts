@@ -1,4 +1,5 @@
-import { join, resolve } from "path";
+import { join } from "path";
+import { homedir } from "os";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 
 export interface AwsProviderConfig {
@@ -18,35 +19,24 @@ export interface ScaleTailsConfig {
 
 const CONFIG_FILE = "config.json";
 
+export function getDataDir(): string {
+  return join(homedir(), ".scaletails");
+}
+
 export function getNodesDir(): string {
-  return join(resolveProjectRoot(), "nodes");
+  return join(getDataDir(), "nodes");
 }
 
-/**
- * Find the project root by looking for the modules/ directory,
- * walking up from cwd. This works regardless of how the CLI is invoked
- * (bun run, bunx, bun link, etc.)
- */
-export function resolveProjectRoot(): string {
-  let dir = process.cwd();
-  while (dir !== "/") {
-    if (existsSync(join(dir, "modules"))) return dir;
-    dir = resolve(dir, "..");
-  }
-  // Fallback to cwd if no marker found
-  return process.cwd();
-}
-
-export function loadConfig(nodesDir?: string): ScaleTailsConfig | null {
-  const dir = nodesDir ?? getNodesDir();
+export function loadConfig(): ScaleTailsConfig | null {
+  const dir = getDataDir();
   const configPath = join(dir, CONFIG_FILE);
   if (!existsSync(configPath)) return null;
   const raw = readFileSync(configPath, "utf-8");
   return JSON.parse(raw) as ScaleTailsConfig;
 }
 
-export function saveConfig(config: ScaleTailsConfig, nodesDir?: string): void {
-  const dir = nodesDir ?? getNodesDir();
+export function saveConfig(config: ScaleTailsConfig): void {
+  const dir = getDataDir();
   mkdirSync(dir, { recursive: true });
   const configPath = join(dir, CONFIG_FILE);
   writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");

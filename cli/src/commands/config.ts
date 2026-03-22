@@ -1,7 +1,7 @@
 // cli/src/commands/config.ts
 import { Command } from "commander";
 import { input, select, password } from "@inquirer/prompts";
-import { loadConfig, saveConfig, validateConfig, getNodesDir } from "../config";
+import { loadConfig, saveConfig, validateConfig, getDataDir } from "../config";
 import type { ScaleTailsConfig } from "../config";
 import { readFileSync, existsSync } from "fs";
 
@@ -77,9 +77,9 @@ async function handleNonInteractive(opts: {
   }
 
   saveConfig(config);
-  const nodesDir = getNodesDir();
+  const dataDir = getDataDir();
   if (opts.json) {
-    console.log(JSON.stringify({ status: "ok", configPath: `${nodesDir}/config.json` }));
+    console.log(JSON.stringify({ status: "ok", configPath: `${dataDir}/config.json` }));
   } else {
     console.log("Configuration saved.");
   }
