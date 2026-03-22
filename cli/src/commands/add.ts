@@ -1,6 +1,7 @@
 // cli/src/commands/add.ts
 import { Command } from "commander";
 import { loadConfig, getNodesDir } from "../config";
+import type { AwsProviderConfig } from "../config";
 import { loadManifest, saveManifest, addNode, findNode } from "../manifest";
 import {
   checkTerraformInstalled,
@@ -68,7 +69,7 @@ export function createAddCommand(): Command {
       writeRootConfig(nodeDir, hcl);
 
       // 7. Build env vars
-      const envVars = provider === "aws" ? buildAwsEnvVars(providerConfig as any) : {};
+      const envVars = provider === "aws" ? buildAwsEnvVars(providerConfig as AwsProviderConfig) : {};
       const vars = { tailscale_auth_key: config.tailscale.authKey };
 
       // 8. terraform init

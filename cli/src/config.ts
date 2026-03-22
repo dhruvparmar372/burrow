@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join, resolve } from "path";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 
 export interface AwsProviderConfig {
@@ -31,7 +31,7 @@ export function resolveProjectRoot(): string {
   let dir = process.cwd();
   while (dir !== "/") {
     if (existsSync(join(dir, "modules"))) return dir;
-    dir = join(dir, "..");
+    dir = resolve(dir, "..");
   }
   // Fallback to cwd if no marker found
   return process.cwd();
