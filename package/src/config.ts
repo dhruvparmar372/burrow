@@ -8,7 +8,7 @@ export interface AwsProviderConfig {
   useAmbientCredentials: boolean;
 }
 
-export interface ScaleTailsConfig {
+export interface BurrowConfig {
   tailscale: {
     authKey: string;
   };
@@ -20,29 +20,29 @@ export interface ScaleTailsConfig {
 const CONFIG_FILE = "config.json";
 
 export function getDataDir(): string {
-  return join(homedir(), ".scaletails");
+  return join(homedir(), ".burrow");
 }
 
 export function getNodesDir(): string {
   return join(getDataDir(), "nodes");
 }
 
-export function loadConfig(): ScaleTailsConfig | null {
+export function loadConfig(): BurrowConfig | null {
   const dir = getDataDir();
   const configPath = join(dir, CONFIG_FILE);
   if (!existsSync(configPath)) return null;
   const raw = readFileSync(configPath, "utf-8");
-  return JSON.parse(raw) as ScaleTailsConfig;
+  return JSON.parse(raw) as BurrowConfig;
 }
 
-export function saveConfig(config: ScaleTailsConfig): void {
+export function saveConfig(config: BurrowConfig): void {
   const dir = getDataDir();
   mkdirSync(dir, { recursive: true });
   const configPath = join(dir, CONFIG_FILE);
   writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
 }
 
-export function validateConfig(config: ScaleTailsConfig): string[] {
+export function validateConfig(config: BurrowConfig): string[] {
   const errors: string[] = [];
 
   if (!config.tailscale?.authKey) {

@@ -1,4 +1,4 @@
-// cli/src/commands/add.ts
+// src/commands/add.ts
 import { Command } from "commander";
 import { loadConfig } from "../config";
 import type { AwsProviderConfig } from "../config";
@@ -33,7 +33,7 @@ export function createAddCommand(): Command {
       // 2. Check config
       const config = loadConfig();
       if (!config) {
-        exitWithError("No configuration found. Run 'scaletails config' first.", json);
+        exitWithError("No configuration found. Run 'burrow config' first.", json);
       }
 
       // 3. Validate provider/region
@@ -48,7 +48,7 @@ export function createAddCommand(): Command {
       // 4. Check for provider config
       const providerConfig = config.providers[provider as keyof typeof config.providers];
       if (!providerConfig) {
-        exitWithError(`Provider '${provider}' is not configured. Run 'scaletails config' first.`, json);
+        exitWithError(`Provider '${provider}' is not configured. Run 'burrow config' first.`, json);
       }
 
       // 5. Check duplicates

@@ -1,19 +1,15 @@
-# Terraform
-.terraform
-.terraform.lock.hcl
-*.tfstate
-*.tfstate.backup
-
-# Runtime (credentials + state)
-nodes/
+# Dependencies
+package/node_modules/
+website/node_modules/
 
 # Editor / OS
 *.code-workspace
 .DS_Store
 .vscode/
 
-# Dependencies
-cli/node_modules/
-
 # Environment
 .env
+
+# Website
+website/dist/
+website/.astro/

@@ -1,4 +1,4 @@
-// cli/src/commands/remove.ts
+// src/commands/remove.ts
 import { Command } from "commander";
 import { confirm } from "@inquirer/prompts";
 import { loadConfig, getNodesDir } from "../config";
@@ -25,7 +25,7 @@ export function createRemoveCommand(): Command {
 
       const config = loadConfig();
       if (!config) {
-        exitWithError("No configuration found. Run 'scaletails config' first.", json);
+        exitWithError("No configuration found. Run 'burrow config' first.", json);
       }
 
       const manifest = loadManifest();

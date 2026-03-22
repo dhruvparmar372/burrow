@@ -1,9 +1,9 @@
 {
-  "name": "scaletails",
+  "name": "burrow",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "scaletails": "src/index.ts"
+    "burrow": "src/index.ts"
   },
   "scripts": {
     "dev": "bun run src/index.ts",

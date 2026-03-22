@@ -8,8 +8,8 @@ import { createRemoveCommand } from "./commands/remove";
 const program = new Command();
 
 program
-  .name("scaletails")
-  .description("Manage Tailscale exit nodes across cloud providers")
+  .name("burrow")
+  .description("Self-hosted VPN — deploy Tailscale exit nodes anywhere")
   .version("0.1.0");
 
 program.addCommand(createConfigCommand());

@@ -1,8 +1,8 @@
-// cli/src/commands/config.ts
+// src/commands/config.ts
 import { Command } from "commander";
 import { input, select, password } from "@inquirer/prompts";
 import { loadConfig, saveConfig, validateConfig, getDataDir } from "../config";
-import type { ScaleTailsConfig } from "../config";
+import type { BurrowConfig } from "../config";
 import { readFileSync, existsSync } from "fs";
 
 export function createConfigCommand(): Command {
@@ -35,7 +35,7 @@ async function handleNonInteractive(opts: {
   fromFile?: string;
   json?: boolean;
 }): Promise<void> {
-  let config: ScaleTailsConfig;
+  let config: BurrowConfig;
 
   // Start from file import or existing config
   if (opts.fromFile) {
@@ -45,7 +45,7 @@ async function handleNonInteractive(opts: {
       process.exit(1);
     }
     const raw = readFileSync(opts.fromFile, "utf-8");
-    config = JSON.parse(raw) as ScaleTailsConfig;
+    config = JSON.parse(raw) as BurrowConfig;
   } else {
     config = loadConfig() ?? { tailscale: { authKey: "" }, providers: {} };
   }
