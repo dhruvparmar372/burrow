@@ -3,20 +3,13 @@ import { mkdirSync, writeFileSync, rmSync } from "fs";
 import { getNodesDir } from "./config";
 import type { AwsProviderConfig } from "./config";
 
-// Supported regions per provider — must match the AMI map in the embedded terraform
-const SUPPORTED_REGIONS: Record<string, string[]> = {
-  aws: ["ap-south-1", "me-central-1"],
-};
-
-export function getSupportedRegions(provider: string): string[] {
-  return SUPPORTED_REGIONS[provider] ?? [];
-}
-
 // ---------------------------------------------------------------------------
 // Embedded Terraform templates for AWS exit nodes
 // ---------------------------------------------------------------------------
 // These were previously in modules/aws-exit-node/. Embedding them makes the
 // CLI fully self-contained — no external module references needed.
+// AMIs are looked up at apply time via AWS SSM Parameter Store, so any
+// AWS region works without maintaining a hardcoded AMI map.
 // ---------------------------------------------------------------------------
 
 function generateAwsMainTf(region: string): string {
@@ -43,17 +36,13 @@ variable "tailscale_auth_key" {
   }
 }
 
-variable "aws_instance_ami_id" {
-  type = map(string)
-  default = {
-    "ap-south-1"   = "ami-007020fd9c84e18c7"
-    "me-central-1" = "ami-04c9a1a3a1cdc1655"
-  }
-}
-
 variable "aws_instance_type" {
   type    = string
   default = "t3.nano"
+}
+
+data "aws_ssm_parameter" "ubuntu_ami" {
+  name = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
 }
 
 resource "aws_iam_role" "ec2_ssm_role" {
@@ -83,7 +72,7 @@ resource "aws_iam_instance_profile" "ec2_ssm_instance_profile" {
 }
 
 resource "aws_instance" "ts_exit_node" {
-  ami                         = lookup(var.aws_instance_ami_id, "${region}", "")
+  ami                         = data.aws_ssm_parameter.ubuntu_ami.value
   instance_type               = var.aws_instance_type
   associate_public_ip_address = true
 

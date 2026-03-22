@@ -5,7 +5,6 @@ import type { AwsProviderConfig } from "../config";
 import { loadManifest, saveManifest, addNode, findNode } from "../manifest";
 import {
   checkTerraformInstalled,
-  getSupportedRegions,
   generateAwsTerraformFiles,
   createNodeDirectory,
   writeTerraformFiles,
@@ -36,13 +35,9 @@ export function createAddCommand(): Command {
         exitWithError("No configuration found. Run 'burrow config' first.", json);
       }
 
-      // 3. Validate provider/region
-      const supportedRegions = getSupportedRegions(provider);
-      if (supportedRegions.length === 0) {
-        exitWithError(`Unknown provider: ${provider}`, json);
-      }
-      if (!supportedRegions.includes(region)) {
-        exitWithError(`Region '${region}' is not supported for provider '${provider}'. Supported: ${supportedRegions.join(", ")}`, json);
+      // 3. Validate provider
+      if (provider !== "aws") {
+        exitWithError(`Unknown provider: ${provider}. Currently only 'aws' is supported.`, json);
       }
 
       // 4. Check for provider config

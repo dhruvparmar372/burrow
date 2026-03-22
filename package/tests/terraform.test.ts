@@ -1,31 +1,27 @@
 import { describe, test, expect } from "bun:test";
-import { generateAwsRootConfig, getSupportedRegions } from "../src/terraform";
+import { generateAwsTerraformFiles } from "../src/terraform";
 
 describe("terraform", () => {
-  test("generateAwsRootConfig produces valid HCL for ap-south-1", () => {
-    const hcl = generateAwsRootConfig("ap-south-1");
+  test("generateAwsTerraformFiles produces valid HCL for any region", () => {
+    const files = generateAwsTerraformFiles("us-east-1");
+    const hcl = files["main.tf"];
     expect(hcl).toContain('source  = "hashicorp/aws"');
-    expect(hcl).toContain('region = "ap-south-1"');
-    expect(hcl).toContain('source = "../../modules/aws-exit-node"');
-    expect(hcl).toContain('aws_region         = "ap-south-1"');
+    expect(hcl).toContain('region = "us-east-1"');
+    expect(hcl).toContain("aws_ssm_parameter");
+    expect(hcl).toContain("/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id");
     expect(hcl).toContain("tailscale_auth_key");
     expect(hcl).toContain("sensitive = true");
   });
 
-  test("generateAwsRootConfig uses correct module path", () => {
-    const hcl = generateAwsRootConfig("me-central-1");
-    expect(hcl).toContain('source = "../../modules/aws-exit-node"');
-    expect(hcl).toContain('region = "me-central-1"');
+  test("generateAwsTerraformFiles uses SSM data source for AMI", () => {
+    const files = generateAwsTerraformFiles("eu-west-1");
+    const hcl = files["main.tf"];
+    expect(hcl).toContain("data.aws_ssm_parameter.ubuntu_ami.value");
+    expect(hcl).not.toContain("aws_instance_ami_id");
   });
 
-  test("getSupportedRegions returns known AWS regions", () => {
-    const regions = getSupportedRegions("aws");
-    expect(regions).toContain("ap-south-1");
-    expect(regions).toContain("me-central-1");
-  });
-
-  test("getSupportedRegions returns empty for unknown provider", () => {
-    const regions = getSupportedRegions("gcp");
-    expect(regions).toEqual([]);
+  test("generateAwsTerraformFiles includes user_data template", () => {
+    const files = generateAwsTerraformFiles("ap-south-1");
+    expect(files["user_data.tftpl"]).toContain("tailscale up");
   });
 });
