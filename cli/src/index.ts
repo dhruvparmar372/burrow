@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { createConfigCommand } from "./commands/config";
 import { createAddCommand } from "./commands/add";
+import { createListCommand } from "./commands/list";
 
 const program = new Command();
 
@@ -12,5 +13,6 @@ program
 
 program.addCommand(createConfigCommand());
 program.addCommand(createAddCommand());
+program.addCommand(createListCommand());
 
 program.parse();
