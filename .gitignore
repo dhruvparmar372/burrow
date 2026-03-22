@@ -1,6 +1,19 @@
+# Terraform
 .terraform
 .terraform.lock.hcl
-*.code-workspace
 *.tfstate
 *.tfstate.backup
+
+# Runtime (credentials + state)
+nodes/
+
+# Editor / OS
+*.code-workspace
+.DS_Store
+.vscode/
+
+# Dependencies
+cli/node_modules/
+
+# Environment
 .env
