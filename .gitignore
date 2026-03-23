@@ -7,6 +7,9 @@ website/node_modules/
 .DS_Store
 .vscode/
 
+# Build output
+package/burrow
+
 # Environment
 .env
 
