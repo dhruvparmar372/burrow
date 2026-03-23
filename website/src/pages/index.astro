@@ -42,23 +42,23 @@
 			.btn-accent { background: var(--accent); color: var(--bg) !important; }
 
 			/* Hero */
-			.hero { display: flex; align-items: center; gap: 64px; max-width: 1100px; margin: 0 auto; padding: 0 48px; min-height: calc(100vh - 53px); }
-			.hero-text { flex: 0 0 420px; }
-			.hero-text h1 { font-size: 44px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.08; color: #fff; margin-bottom: 16px; }
-			.hero-text p { font-size: 17px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 20px; }
-			.hero-prereqs { font-size: 14px; color: var(--text-muted); margin-bottom: 28px; }
+			.hero { display: flex; flex-direction: column; align-items: center; justify-content: center; max-width: 900px; margin: 0 auto; padding: 0 48px; min-height: calc(100vh - 53px); gap: 40px; text-align: center; }
+			.hero-text h1 { font-size: 52px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.08; color: #fff; margin-bottom: 16px; }
+			.hero-text p { font-size: 18px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px; }
+			.hero-prereqs { font-size: 14px; color: var(--text-muted); }
 			.hero-prereqs a { color: var(--text-secondary); text-decoration: underline; text-decoration-color: var(--border-light); text-underline-offset: 3px; }
 			.hero-prereqs a:hover { color: var(--accent); text-decoration-color: var(--accent); }
-			.hero-terminal { flex: 1; min-width: 0; }
 
 			/* Install command */
-			.install-cmd { margin-bottom: 28px; }
+			.install-cmd { width: 100%; max-width: 700px; }
 			.install-cmd label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
 			.install-cmd-box { display: flex; align-items: center; background: var(--surface); border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
-			.install-cmd-box code { flex: 1; padding: 14px 16px; font-size: 14px; color: var(--accent); white-space: nowrap; overflow-x: auto; }
+			.install-cmd-box code { flex: 1; padding: 14px 16px; font-size: 14px; color: var(--accent); white-space: nowrap; overflow-x: auto; text-align: left; }
 			.install-cmd-box button { background: none; border: none; border-left: 1px solid var(--border-light); padding: 14px 16px; cursor: pointer; color: var(--text-muted); font-size: 14px; transition: color 0.15s; flex-shrink: 0; }
 			.install-cmd-box button:hover { color: var(--accent); }
 			.install-cmd-box button.copied { color: var(--accent); }
+
+			.hero-terminal { width: 100%; max-width: 700px; }
 
 			/* Terminal */
 			.terminal { background: var(--surface); border: 1px solid var(--border-light); border-radius: 12px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.5); }
@@ -79,10 +79,9 @@
 			/* Responsive */
 			@media (max-width: 768px) {
 				nav { padding: 14px 20px; }
-				.hero { flex-direction: column; padding: 60px 20px; gap: 40px; min-height: calc(100vh - 49px); justify-content: center; }
-				.hero-text { flex: none; text-align: center; }
-				.hero-text h1 { font-size: 32px; }
-				.install-cmd-box code { font-size: 12px; }
+				.hero { padding: 60px 20px; gap: 28px; }
+				.hero-text h1 { font-size: 36px; }
+				.install-cmd-box code { font-size: 11px; }
 				footer { padding: 24px 20px; }
 			}
 		</style>
@@ -103,12 +102,12 @@
 				<h1>Self-hosted VPN in one command.</h1>
 				<p>Deploy Tailscale exit nodes to any AWS region. Your cloud, your traffic.</p>
 				<div class="hero-prereqs">Installs <a href="https://developer.hashicorp.com/terraform/install" target="_blank" rel="noopener">Terraform</a> and <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a> if not already present.</div>
-				<div class="install-cmd">
-					<label>Install</label>
-					<div class="install-cmd-box">
-						<code id="install-text">curl -fsSL https://raw.githubusercontent.com/dhruvparmar372/burrow/main/install.sh | sh</code>
-						<button onclick="copyInstall()" id="copy-btn" title="Copy to clipboard">Copy</button>
-					</div>
+			</div>
+			<div class="install-cmd">
+				<label>Install</label>
+				<div class="install-cmd-box">
+					<code id="install-text">curl -fsSL https://raw.githubusercontent.com/dhruvparmar372/burrow/main/install.sh | sh</code>
+					<button onclick="copyInstall()" id="copy-btn" title="Copy to clipboard">Copy</button>
 				</div>
 			</div>
 			<div class="hero-terminal">
@@ -119,8 +118,8 @@
 						<div class="dot dot-g"></div>
 					</div>
 					<div class="terminal-body mono">
-						<div><span class="c">$ burrow config</span></div>
-						<div><span class="b">&#10003; Configuration saved</span></div>
+						<div><span class="c">$ burrow init</span></div>
+						<div><span class="b">&#10003; Configuration saved. You're ready to deploy!</span></div>
 						<div style="margin-top:6px"><span class="c">$ burrow add --region us-east-1</span></div>
 						<div><span class="o">Deploying exit node in aws/us-east-1...</span></div>
 						<div><span class="b">&#10003; Exit node deployed: aws/us-east-1</span></div>
