@@ -25,7 +25,7 @@ export function createRemoveCommand(): Command {
 
       const config = loadConfig();
       if (!config) {
-        exitWithError("No configuration found. Run 'burrow config' first.", json);
+        exitWithError("No configuration found. Run 'burrow init' first.", json);
       }
 
       const manifest = loadManifest();
