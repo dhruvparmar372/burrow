@@ -1,81 +1,125 @@
-# ScaleTails
+# Burrow
 
-Deploy Tailscale exit nodes across cloud providers.
+Self-hosted VPN in one command. Deploy Tailscale exit nodes to any AWS region. Your cloud, your traffic.
 
-## Prerequisites
-
-- [Bun](https://bun.sh/) runtime
-- [Terraform](https://developer.hashicorp.com/terraform/install) CLI
-- A [Tailscale](https://tailscale.com/) account with an auth key
-- An AWS account (access key ID + secret access key)
-
-## Setup
+## Install
 
 ```bash
-cd cli && bun install
+curl -fsSL https://raw.githubusercontent.com/dhruvparmar372/burrow/main/install.sh | sh
 ```
+
+This installs the `burrow` binary and sets up [Terraform](https://developer.hashicorp.com/terraform/install) and [Tailscale](https://tailscale.com/) if not already present.
 
 ## Usage
 
-### Configure credentials
-
-Interactive:
 ```bash
-bun run cli/src/index.ts config
+# Set up credentials
+burrow init
+
+# Deploy exit nodes
+burrow add --region us-east-1
+burrow add --region eu-west-1
+
+# List active nodes
+burrow list
+
+# View config (values are redacted)
+burrow config
+
+# Remove a node
+burrow remove --region us-east-1
+
+# Remove all nodes
+burrow remove --all
 ```
 
-Non-interactive:
-```bash
-bun run cli/src/index.ts config \
-  --tailscale-auth-key tskey-auth-xxx \
-  --aws-access-key-id AKIA... \
-  --aws-secret-access-key ... \
-  --json
-```
+## Commands
 
-Or import from a file:
-```bash
-bun run cli/src/index.ts config --from-file config.json --json
-```
+| Command | Description |
+|---------|-------------|
+| `burrow init` | Interactive setup wizard for credentials |
+| `burrow config` | View current config (redacted) or update via flags |
+| `burrow add --region <region>` | Deploy an exit node to any AWS region |
+| `burrow list` | List all active exit nodes |
+| `burrow remove --region <region>` | Tear down an exit node |
+| `burrow remove --all` | Remove all exit nodes |
 
-### Deploy an exit node
+All commands support `--json` for structured output and `--auto-approve` to skip confirmations.
 
-```bash
-bun run cli/src/index.ts add --region ap-south-1
-bun run cli/src/index.ts add --region me-central-1
-```
+---
 
-### List active nodes
+## Development
 
-```bash
-bun run cli/src/index.ts list
-```
+### Prerequisites
 
-### Remove an exit node
+- [Bun](https://bun.sh/) runtime
+- [Terraform](https://developer.hashicorp.com/terraform/install) CLI
+
+### Setup
 
 ```bash
-bun run cli/src/index.ts remove --region ap-south-1
+cd package
+bun install
 ```
 
-### Remove all exit nodes
+### Running locally
 
 ```bash
-bun run cli/src/index.ts remove --all
+# Run the CLI directly
+bun run dev -- init
+bun run dev -- add --region us-east-1
+
+# Build a standalone binary
+bun run build
 ```
 
-## Supported Regions
-
-| Provider | Region | Location |
-|----------|--------|----------|
-| AWS | `ap-south-1` | Mumbai |
-| AWS | `me-central-1` | UAE |
-
-## Agent-Friendly Usage
-
-All commands support `--json` for structured output and `--auto-approve` to skip confirmations:
+### Testing
 
 ```bash
-bun run cli/src/index.ts add --region ap-south-1 --auto-approve --json
-bun run cli/src/index.ts list --json
-bun run cli/src/index.ts remove --region ap-south-1 --auto-approve --json
+cd package
+bun test
 ```
+
+### Project structure
+
+```
+burrow/
+├── package/                 # CLI source
+│   ├── src/
+│   │   ├── index.ts         # Entry point, registers commands
+│   │   ├── config.ts        # Config load/save (~/.burrow/config.json)
+│   │   ├── manifest.ts      # Node manifest (tracks deployed nodes)
+│   │   ├── terraform.ts     # Embedded Terraform templates + runner
+│   │   ├── utils.ts         # Shared utilities
+│   │   └── commands/
+│   │       ├── init.ts      # Interactive first-time setup
+│   │       ├── config.ts    # View/update config
+│   │       ├── add.ts       # Deploy an exit node
+│   │       ├── list.ts      # List active nodes
+│   │       └── remove.ts    # Tear down nodes
+│   └── tests/
+├── website/                 # Astro landing page
+├── install.sh               # curl installer script
+└── .github/workflows/
+    └── release.yml          # Build binaries on tag push
+```
+
+### Architecture
+
+Burrow is a CLI that wraps Terraform to manage Tailscale exit nodes on AWS. The key design decisions:
+
+- **Embedded Terraform** — HCL templates are generated in `terraform.ts`, not stored as external files. This makes the CLI fully self-contained.
+- **Runtime AMI lookup** — Ubuntu AMIs are resolved at apply time via AWS SSM Parameter Store, so any AWS region works without a hardcoded AMI map.
+- **State in `~/.burrow/`** — config, manifests, and per-node Terraform state all live under the user's home directory.
+- **Standalone binary** — `bun build --compile` produces a single executable with no runtime dependencies.
+
+### Release process
+
+Push a version tag to trigger the release workflow:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+This builds binaries for macOS (ARM64, x64) and Linux (x64, ARM64), then creates a GitHub Release with all artifacts attached.
