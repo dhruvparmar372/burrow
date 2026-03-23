@@ -111,6 +111,6 @@ case ":$PATH:" in
     echo ""
     echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
     echo ""
-    echo "Then run: burrow config"
+    echo "Then run: burrow init"
     ;;
 esac
