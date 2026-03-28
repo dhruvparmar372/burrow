@@ -1,18 +1,15 @@
-// src/commands/add.ts
 import { Command } from "commander";
-import { loadConfig } from "../config";
-import type { AwsProviderConfig } from "../config";
+import { loadConfig, saveConfig } from "../config";
 import { loadManifest, saveManifest, addNode, findNode } from "../manifest";
 import {
   checkTerraformInstalled,
-  generateAwsTerraformFiles,
   createNodeDirectory,
   writeTerraformFiles,
   cleanupNodeDirectory,
   runTerraform,
-  buildAwsEnvVars,
 } from "../terraform";
 import { exitWithError } from "../utils";
+import { getProvider, getAllProviderNames } from "../providers";
 
 export function createAddCommand(): Command {
   const cmd = new Command("add")
@@ -22,7 +19,7 @@ export function createAddCommand(): Command {
     .option("--auto-approve", "Skip Terraform confirmation prompt")
     .option("--json", "Output result as JSON")
     .action(async (opts) => {
-      const { provider, region, autoApprove, json } = opts;
+      const { provider: providerName, region, autoApprove, json } = opts;
 
       // 1. Check terraform
       if (!checkTerraformInstalled()) {
@@ -36,39 +33,47 @@ export function createAddCommand(): Command {
       }
 
       // 3. Validate provider
-      if (provider !== "aws") {
-        exitWithError(`Unknown provider: ${provider}. Currently only 'aws' is supported.`, json);
+      const provider = getProvider(providerName);
+      if (!provider) {
+        const supported = getAllProviderNames().join(", ");
+        exitWithError(`Unknown provider: ${providerName}. Supported: ${supported}`, json);
       }
 
-      // 4. Check for provider config
-      const providerConfig = config.providers[provider as keyof typeof config.providers];
+      // 4. Check for provider config — prompt if missing
+      let providerConfig = config.providers[providerName];
       if (!providerConfig) {
-        exitWithError(`Provider '${provider}' is not configured. Run 'burrow init' first.`, json);
+        if (json) {
+          exitWithError(`Provider '${providerName}' is not configured. Run 'burrow add --provider ${providerName} --region <region>' interactively first.`, json);
+        }
+        console.log(`\n${provider.displayName} is not configured yet. Let's set it up.\n`);
+        providerConfig = await provider.promptForCredentials();
+        const errors = provider.validateConfig(providerConfig);
+        if (errors.length > 0) {
+          exitWithError(errors.join("; "), json);
+        }
+        config.providers[providerName] = providerConfig;
+        saveConfig(config);
+        console.log(`\n✓ ${provider.displayName} credentials saved.\n`);
       }
 
       // 5. Check duplicates
       const manifest = loadManifest();
-      if (findNode(manifest, provider, region)) {
-        exitWithError(`Exit node already exists: ${provider}/${region}`, json);
+      if (findNode(manifest, providerName, region)) {
+        exitWithError(`Exit node already exists: ${providerName}/${region}`, json);
       }
 
       // 6. Generate terraform files
-      let tfFiles: Record<string, string>;
-      if (provider === "aws") {
-        tfFiles = generateAwsTerraformFiles(region);
-      } else {
-        exitWithError(`Provider '${provider}' is not yet implemented.`, json);
-      }
-
-      const nodeDir = createNodeDirectory(provider, region);
+      const tfFiles = provider.generateTerraformFiles(region);
+      const nodeDir = createNodeDirectory(providerName, region);
       writeTerraformFiles(nodeDir, tfFiles);
 
-      // 7. Build env vars
-      const envVars = provider === "aws" ? buildAwsEnvVars(providerConfig as AwsProviderConfig) : {};
-      const vars = { tailscale_auth_key: config.tailscale.authKey };
+      // 7. Build env vars and terraform vars
+      const envVars = provider.buildEnvVars(providerConfig);
+      const providerVars = provider.buildTerraformVars(providerConfig);
+      const vars = { tailscale_auth_key: config.tailscale.authKey, ...providerVars };
 
       // 8. terraform init
-      if (!json) console.log(`\nInitializing Terraform for ${provider}/${region}...`);
+      if (!json) console.log(`\nInitializing Terraform for ${providerName}/${region}...`);
       const initCode = await runTerraform({
         command: "init",
         cwd: nodeDir,
@@ -81,7 +86,7 @@ export function createAddCommand(): Command {
       }
 
       // 9. terraform apply
-      if (!json) console.log(`\nDeploying exit node in ${provider}/${region}...`);
+      if (!json) console.log(`\nDeploying exit node in ${providerName}/${region}...`);
       const applyCode = await runTerraform({
         command: "apply",
         cwd: nodeDir,
@@ -91,19 +96,18 @@ export function createAddCommand(): Command {
         jsonMode: json,
       });
       if (applyCode !== 0) {
-        // Don't clean up — partial apply may have created resources
-        exitWithError(`terraform apply failed. State preserved in nodes/${provider}-${region}/ for debugging.`, json);
+        exitWithError(`terraform apply failed. State preserved in nodes/${providerName}-${region}/ for debugging.`, json);
       }
 
       // 10. Update manifest
-      const updated = addNode(manifest, provider, region);
+      const updated = addNode(manifest, providerName, region);
       saveManifest(updated);
 
-      const directory = `${provider}-${region}`;
+      const directory = `${providerName}-${region}`;
       if (json) {
-        console.log(JSON.stringify({ status: "ok", provider, region, directory }));
+        console.log(JSON.stringify({ status: "ok", provider: providerName, region, directory }));
       } else {
-        console.log(`\n✓ Exit node deployed: ${provider}/${region}`);
+        console.log(`\n✓ Exit node deployed: ${providerName}/${region}`);
       }
     });
 

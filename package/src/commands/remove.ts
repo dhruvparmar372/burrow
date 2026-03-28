@@ -1,11 +1,10 @@
-// src/commands/remove.ts
 import { Command } from "commander";
 import { confirm } from "@inquirer/prompts";
 import { loadConfig, getNodesDir } from "../config";
 import { loadManifest, saveManifest, removeNode, findNode } from "../manifest";
-import { runTerraform, cleanupNodeDirectory, buildAwsEnvVars } from "../terraform";
+import { runTerraform, cleanupNodeDirectory } from "../terraform";
 import { exitWithError } from "../utils";
-import type { AwsProviderConfig } from "../config";
+import { getProvider } from "../providers";
 import { join } from "path";
 
 export function createRemoveCommand(): Command {
@@ -40,28 +39,47 @@ export function createRemoveCommand(): Command {
   return cmd;
 }
 
+function getEnvVarsForProvider(
+  providerName: string,
+  config: NonNullable<ReturnType<typeof loadConfig>>
+): Record<string, string> {
+  const provider = getProvider(providerName);
+  const providerConfig = config.providers[providerName];
+  if (!provider || !providerConfig) return {};
+  return provider.buildEnvVars(providerConfig);
+}
+
+function getTerraformVarsForProvider(
+  providerName: string,
+  config: NonNullable<ReturnType<typeof loadConfig>>
+): Record<string, string> {
+  const provider = getProvider(providerName);
+  const providerConfig = config.providers[providerName];
+  if (!provider || !providerConfig) return {};
+  return provider.buildTerraformVars(providerConfig);
+}
+
 async function handleRemoveSingle(
   manifest: ReturnType<typeof loadManifest>,
   config: NonNullable<ReturnType<typeof loadConfig>>,
-  provider: string,
+  providerName: string,
   region: string,
   autoApprove: boolean,
   json: boolean
 ): Promise<void> {
-  const node = findNode(manifest, provider, region);
+  const node = findNode(manifest, providerName, region);
   if (!node) {
-    exitWithError(`No exit node found: ${provider}/${region}`, json);
+    exitWithError(`No exit node found: ${providerName}/${region}`, json);
   }
 
   const nodesDir = getNodesDir();
   const nodeDir = join(nodesDir, node.directory);
 
-  const envVars = provider === "aws"
-    ? buildAwsEnvVars(config.providers.aws as AwsProviderConfig)
-    : {};
-  const vars = { tailscale_auth_key: config.tailscale.authKey };
+  const envVars = getEnvVarsForProvider(providerName, config);
+  const providerVars = getTerraformVarsForProvider(providerName, config);
+  const vars = { tailscale_auth_key: config.tailscale.authKey, ...providerVars };
 
-  if (!json) console.log(`\nDestroying exit node ${provider}/${region}...`);
+  if (!json) console.log(`\nDestroying exit node ${providerName}/${region}...`);
 
   const exitCode = await runTerraform({
     command: "destroy",
@@ -76,14 +94,14 @@ async function handleRemoveSingle(
     exitWithError(`terraform destroy failed. State preserved for debugging.`, json);
   }
 
-  const updated = removeNode(manifest, provider, region);
+  const updated = removeNode(manifest, providerName, region);
   saveManifest(updated);
   cleanupNodeDirectory(nodeDir);
 
   if (json) {
-    console.log(JSON.stringify({ status: "ok", provider, region }));
+    console.log(JSON.stringify({ status: "ok", provider: providerName, region }));
   } else {
-    console.log(`\n✓ Exit node removed: ${provider}/${region}`);
+    console.log(`\n✓ Exit node removed: ${providerName}/${region}`);
   }
 }
 
@@ -123,10 +141,9 @@ async function handleRemoveAll(
     const nodesDir = getNodesDir();
     const nodeDir = join(nodesDir, node.directory);
 
-    const envVars = node.provider === "aws"
-      ? buildAwsEnvVars(config.providers.aws as AwsProviderConfig)
-      : {};
-    const vars = { tailscale_auth_key: config.tailscale.authKey };
+    const envVars = getEnvVarsForProvider(node.provider, config);
+    const providerVars = getTerraformVarsForProvider(node.provider, config);
+    const vars = { tailscale_auth_key: config.tailscale.authKey, ...providerVars };
 
     if (!json) console.log(`\nDestroying ${node.provider}/${node.region}...`);
 

@@ -1,134 +1,10 @@
 import { join } from "path";
 import { mkdirSync, writeFileSync, rmSync } from "fs";
 import { getNodesDir } from "./config";
-import type { AwsProviderConfig } from "./config";
 
 // ---------------------------------------------------------------------------
-// Embedded Terraform templates for AWS exit nodes
+// Public API — generic Terraform utilities
 // ---------------------------------------------------------------------------
-// These were previously in modules/aws-exit-node/. Embedding them makes the
-// CLI fully self-contained — no external module references needed.
-// AMIs are looked up at apply time via AWS SSM Parameter Store, so any
-// AWS region works without maintaining a hardcoded AMI map.
-// ---------------------------------------------------------------------------
-
-function generateAwsMainTf(region: string): string {
-  return `terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.41"
-    }
-  }
-}
-
-provider "aws" {
-  region = "${region}"
-}
-
-variable "tailscale_auth_key" {
-  type      = string
-  sensitive = true
-
-  validation {
-    condition     = length(var.tailscale_auth_key) > 0
-    error_message = "Tailscale Auth Key is required."
-  }
-}
-
-variable "aws_instance_type" {
-  type    = string
-  default = "t3.nano"
-}
-
-data "aws_ssm_parameter" "ubuntu_ami" {
-  name = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
-}
-
-resource "aws_iam_role" "ec2_ssm_role" {
-  name = "ec2-ssm-role-${region}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        },
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ssm_policy_attachment" {
-  role       = aws_iam_role.ec2_ssm_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-resource "aws_iam_instance_profile" "ec2_ssm_instance_profile" {
-  name = "ec2-ssm-instance-profile-${region}"
-  role = aws_iam_role.ec2_ssm_role.name
-}
-
-resource "aws_instance" "ts_exit_node" {
-  ami                         = data.aws_ssm_parameter.ubuntu_ami.value
-  instance_type               = var.aws_instance_type
-  associate_public_ip_address = true
-
-  iam_instance_profile = aws_iam_instance_profile.ec2_ssm_instance_profile.name
-
-  metadata_options {
-    http_tokens = "required"
-  }
-
-  user_data = templatefile("\${path.module}/user_data.tftpl", {
-    tailscale_auth_key = var.tailscale_auth_key,
-    tailscale_hostname = "TSExitNode-${region}"
-  })
-
-  tags = {
-    Name = "TSExitNode-${region}"
-  }
-}
-
-output "instance_id" {
-  value = aws_instance.ts_exit_node.id
-}
-
-output "public_ip" {
-  value = aws_instance.ts_exit_node.public_ip
-}
-`;
-}
-
-const AWS_USER_DATA_TFTPL = `#!/bin/bash
-
-# install & start ssm agent on ubuntu
-sudo apt-get update
-sudo snap install amazon-ssm-agent --classic
-sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
-sudo systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
-
-# enable ip forwarding
-echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.conf
-echo 'net.ipv6.conf.all.forwarding = 1' | sudo tee -a /etc/sysctl.conf
-sysctl -p /etc/sysctl.conf
-
-# install tailscale
-curl -fsSL https://tailscale.com/install.sh | sh
-tailscale up --authkey \${tailscale_auth_key} --advertise-exit-node --advertise-tags=tag:scaletails --hostname=\${tailscale_hostname}`;
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-export function generateAwsTerraformFiles(region: string): Record<string, string> {
-  return {
-    "main.tf": generateAwsMainTf(region),
-    "user_data.tftpl": AWS_USER_DATA_TFTPL,
-  };
-}
 
 export function checkTerraformInstalled(): boolean {
   try {
@@ -206,12 +82,4 @@ export function writeTerraformFiles(nodeDir: string, files: Record<string, strin
 
 export function cleanupNodeDirectory(nodeDir: string): void {
   rmSync(nodeDir, { recursive: true, force: true });
-}
-
-export function buildAwsEnvVars(awsConfig: AwsProviderConfig): Record<string, string> {
-  if (awsConfig.useAmbientCredentials) return {};
-  return {
-    AWS_ACCESS_KEY_ID: awsConfig.accessKeyId,
-    AWS_SECRET_ACCESS_KEY: awsConfig.secretAccessKey,
-  };
 }

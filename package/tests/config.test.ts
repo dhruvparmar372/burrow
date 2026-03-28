@@ -1,21 +1,21 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { loadConfig, saveConfig, validateConfig, getNodesDir } from "../src/config";
+import { loadConfig, saveConfig, validateConfig } from "../src/config";
 import { join } from "path";
-import { mkdirSync, rmSync, existsSync } from "fs";
+import { mkdirSync, rmSync } from "fs";
 
-const TEST_NODES_DIR = join(import.meta.dir, "fixtures", "nodes");
+const TEST_DIR = join(import.meta.dir, "fixtures", "config-test");
 
 describe("config", () => {
   beforeEach(() => {
-    mkdirSync(TEST_NODES_DIR, { recursive: true });
+    mkdirSync(TEST_DIR, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(TEST_NODES_DIR, { recursive: true, force: true });
+    rmSync(TEST_DIR, { recursive: true, force: true });
   });
 
   test("loadConfig returns null when config does not exist", () => {
-    const config = loadConfig(TEST_NODES_DIR);
+    const config = loadConfig(TEST_DIR);
     expect(config).toBeNull();
   });
 
@@ -26,12 +26,11 @@ describe("config", () => {
         aws: {
           accessKeyId: "AKIATEST",
           secretAccessKey: "secret123",
-          useAmbientCredentials: false,
         },
       },
     };
-    saveConfig(config, TEST_NODES_DIR);
-    const loaded = loadConfig(TEST_NODES_DIR);
+    saveConfig(config, TEST_DIR);
+    const loaded = loadConfig(TEST_DIR);
     expect(loaded).toEqual(config);
   });
 
@@ -40,20 +39,16 @@ describe("config", () => {
       tailscale: { authKey: "tskey-auth-old" },
       providers: {},
     };
-    saveConfig(initial, TEST_NODES_DIR);
+    saveConfig(initial, TEST_DIR);
 
     const update = {
       tailscale: { authKey: "tskey-auth-new" },
       providers: {
-        aws: {
-          accessKeyId: "AKIATEST",
-          secretAccessKey: "secret",
-          useAmbientCredentials: false,
-        },
+        aws: { accessKeyId: "AKIATEST", secretAccessKey: "secret" },
       },
     };
-    saveConfig(update, TEST_NODES_DIR);
-    const loaded = loadConfig(TEST_NODES_DIR);
+    saveConfig(update, TEST_DIR);
+    const loaded = loadConfig(TEST_DIR);
     expect(loaded!.tailscale.authKey).toBe("tskey-auth-new");
     expect(loaded!.providers.aws).toBeDefined();
   });
@@ -68,48 +63,30 @@ describe("config", () => {
     expect(errors[0]).toContain("Tailscale");
   });
 
-  test("validateConfig returns errors for AWS missing credentials without ambient", () => {
-    const config = {
-      tailscale: { authKey: "tskey-auth-test" },
-      providers: {
-        aws: {
-          accessKeyId: "",
-          secretAccessKey: "",
-          useAmbientCredentials: false,
-        },
-      },
-    };
-    const errors = validateConfig(config);
-    expect(errors.length).toBeGreaterThan(0);
-  });
-
-  test("validateConfig passes for AWS with ambient credentials", () => {
-    const config = {
-      tailscale: { authKey: "tskey-auth-test" },
-      providers: {
-        aws: {
-          accessKeyId: "",
-          secretAccessKey: "",
-          useAmbientCredentials: true,
-        },
-      },
-    };
-    const errors = validateConfig(config);
-    expect(errors).toEqual([]);
-  });
-
   test("validateConfig passes for valid config", () => {
     const config = {
       tailscale: { authKey: "tskey-auth-test" },
       providers: {
-        aws: {
-          accessKeyId: "AKIATEST",
-          secretAccessKey: "secret",
-          useAmbientCredentials: false,
-        },
+        aws: { accessKeyId: "AKIATEST", secretAccessKey: "secret" },
       },
     };
     const errors = validateConfig(config);
     expect(errors).toEqual([]);
+  });
+
+  test("config supports multiple providers", () => {
+    const config = {
+      tailscale: { authKey: "tskey-auth-test" },
+      providers: {
+        aws: { accessKeyId: "AKIATEST", secretAccessKey: "secret" },
+        hetzner: { apiToken: "hc-token-123" },
+        gcp: { projectId: "my-proj", credentialsJson: "{}" },
+      },
+    };
+    saveConfig(config, TEST_DIR);
+    const loaded = loadConfig(TEST_DIR);
+    expect(loaded!.providers.aws).toBeDefined();
+    expect(loaded!.providers.hetzner).toBeDefined();
+    expect(loaded!.providers.gcp).toBeDefined();
   });
 });

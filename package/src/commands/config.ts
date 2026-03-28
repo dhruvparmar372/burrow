@@ -3,6 +3,7 @@ import { loadConfig, saveConfig, validateConfig, getDataDir } from "../config";
 import type { BurrowConfig } from "../config";
 import { readFileSync, existsSync } from "fs";
 import { exitWithError } from "../utils";
+import { getProvider, getAllProviderNames } from "../providers";
 
 function redact(value: string): string {
   if (!value || value.length <= 8) return "****";
@@ -10,22 +11,16 @@ function redact(value: string): string {
 }
 
 function printConfig(config: BurrowConfig, json: boolean): void {
-  const redacted = {
-    tailscale: {
-      authKey: redact(config.tailscale.authKey),
-    },
+  const redacted: Record<string, unknown> = {
+    tailscale: { authKey: redact(config.tailscale.authKey) },
     providers: {} as Record<string, unknown>,
   };
 
-  if (config.providers.aws) {
-    if (config.providers.aws.useAmbientCredentials) {
-      redacted.providers.aws = { useAmbientCredentials: true };
-    } else {
-      redacted.providers.aws = {
-        accessKeyId: redact(config.providers.aws.accessKeyId),
-        secretAccessKey: redact(config.providers.aws.secretAccessKey),
-        useAmbientCredentials: false,
-      };
+  const providers = redacted.providers as Record<string, unknown>;
+  for (const [name, providerConfig] of Object.entries(config.providers)) {
+    const provider = getProvider(name);
+    if (provider) {
+      providers[name] = provider.redactConfig(providerConfig);
     }
   }
 
@@ -33,17 +28,22 @@ function printConfig(config: BurrowConfig, json: boolean): void {
     console.log(JSON.stringify(redacted, null, 2));
   } else {
     console.log("\nCurrent configuration:\n");
-    console.log(`  Tailscale Auth Key:    ${redacted.tailscale.authKey}`);
-    if (config.providers.aws) {
-      if (config.providers.aws.useAmbientCredentials) {
-        console.log(`  AWS Credentials:       ambient (env vars, ~/.aws, SSO)`);
+    console.log(`  Tailscale Auth Key:  ${redact(config.tailscale.authKey)}`);
+
+    for (const providerName of getAllProviderNames()) {
+      const provider = getProvider(providerName)!;
+      const providerConfig = config.providers[providerName];
+      if (providerConfig) {
+        const redactedConfig = provider.redactConfig(providerConfig);
+        console.log(`\n  ${provider.displayName}:`);
+        for (const [key, value] of Object.entries(redactedConfig)) {
+          console.log(`    ${key}: ${value}`);
+        }
       } else {
-        console.log(`  AWS Access Key ID:     ${(redacted.providers.aws as { accessKeyId: string }).accessKeyId}`);
-        console.log(`  AWS Secret Access Key: ${(redacted.providers.aws as { secretAccessKey: string }).secretAccessKey}`);
+        console.log(`\n  ${provider.displayName}: not configured`);
       }
-    } else {
-      console.log(`  AWS:                   not configured`);
     }
+
     console.log(`\n  Config path: ${getDataDir()}/config.json`);
   }
 }
@@ -54,16 +54,20 @@ export function createConfigCommand(): Command {
     .option("--tailscale-auth-key <key>", "Tailscale auth key")
     .option("--aws-access-key-id <id>", "AWS access key ID")
     .option("--aws-secret-access-key <secret>", "AWS secret access key")
-    .option("--aws-use-ambient-credentials", "Use ambient AWS credentials")
+    .option("--hetzner-api-token <token>", "Hetzner Cloud API token")
+    .option("--gcp-project-id <id>", "GCP project ID")
+    .option("--gcp-credentials-json <json>", "GCP service account JSON")
     .option("--from-file <path>", "Import config from a JSON file")
     .option("--json", "Output as JSON")
     .action(async (opts) => {
-      const hasUpdateFlags = opts.fromFile || opts.tailscaleAuthKey || opts.awsAccessKeyId || opts.awsSecretAccessKey || opts.awsUseAmbientCredentials;
+      const hasUpdateFlags = opts.fromFile || opts.tailscaleAuthKey
+        || opts.awsAccessKeyId || opts.awsSecretAccessKey
+        || opts.hetznerApiToken
+        || opts.gcpProjectId || opts.gcpCredentialsJson;
 
       if (hasUpdateFlags) {
         await handleUpdate(opts);
       } else {
-        // View mode
         const config = loadConfig();
         if (!config) {
           exitWithError("No configuration found. Run 'burrow init' first.", opts.json);
@@ -79,7 +83,9 @@ async function handleUpdate(opts: {
   tailscaleAuthKey?: string;
   awsAccessKeyId?: string;
   awsSecretAccessKey?: string;
-  awsUseAmbientCredentials?: boolean;
+  hetznerApiToken?: string;
+  gcpProjectId?: string;
+  gcpCredentialsJson?: string;
   fromFile?: string;
   json?: boolean;
 }): Promise<void> {
@@ -101,17 +107,31 @@ async function handleUpdate(opts: {
     config.tailscale.authKey = opts.tailscaleAuthKey;
   }
 
-  if (opts.awsUseAmbientCredentials) {
+  // AWS
+  if (opts.awsAccessKeyId || opts.awsSecretAccessKey) {
+    const existing = config.providers.aws ?? {};
     config.providers.aws = {
-      accessKeyId: "",
-      secretAccessKey: "",
-      useAmbientCredentials: true,
+      ...existing,
+      ...(opts.awsAccessKeyId && { accessKeyId: opts.awsAccessKeyId }),
+      ...(opts.awsSecretAccessKey && { secretAccessKey: opts.awsSecretAccessKey }),
     };
-  } else if (opts.awsAccessKeyId || opts.awsSecretAccessKey) {
-    config.providers.aws = {
-      accessKeyId: opts.awsAccessKeyId ?? config.providers.aws?.accessKeyId ?? "",
-      secretAccessKey: opts.awsSecretAccessKey ?? config.providers.aws?.secretAccessKey ?? "",
-      useAmbientCredentials: false,
+  }
+
+  // Hetzner
+  if (opts.hetznerApiToken) {
+    config.providers.hetzner = {
+      ...(config.providers.hetzner ?? {}),
+      apiToken: opts.hetznerApiToken,
+    };
+  }
+
+  // GCP
+  if (opts.gcpProjectId || opts.gcpCredentialsJson) {
+    const existing = config.providers.gcp ?? {};
+    config.providers.gcp = {
+      ...existing,
+      ...(opts.gcpProjectId && { projectId: opts.gcpProjectId }),
+      ...(opts.gcpCredentialsJson && { credentialsJson: opts.gcpCredentialsJson }),
     };
   }
 

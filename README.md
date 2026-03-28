@@ -1,6 +1,6 @@
 # Burrow
 
-Self-hosted VPN in one command. Deploy Tailscale exit nodes to any AWS region. Your cloud, your traffic.
+Self-hosted VPN in one command. Deploy Tailscale exit nodes to AWS, Hetzner Cloud, or Google Cloud. Your cloud, your traffic.
 
 ## Install
 
@@ -16,9 +16,13 @@ This installs the `burrow` binary and sets up [Terraform](https://developer.hash
 # Set up credentials
 burrow init
 
-# Deploy exit nodes
+# Deploy exit nodes (AWS is the default provider)
 burrow add --region us-east-1
 burrow add --region eu-west-1
+
+# Deploy to other providers
+burrow add --provider hetzner --region fsn1
+burrow add --provider gcp --region us-central1-a
 
 # List active nodes
 burrow list
@@ -28,6 +32,7 @@ burrow config
 
 # Remove a node
 burrow remove --region us-east-1
+burrow remove --provider hetzner --region fsn1
 
 # Remove all nodes
 burrow remove --all
@@ -37,9 +42,10 @@ burrow remove --all
 
 | Command | Description |
 |---------|-------------|
-| `burrow init` | Interactive setup wizard for credentials |
+| `burrow init` | Set up Tailscale auth key |
 | `burrow config` | View current config (redacted) or update via flags |
-| `burrow add --region <region>` | Deploy an exit node to any AWS region |
+| `burrow add --region <region>` | Deploy an exit node (prompts for provider credentials if needed) |
+| `burrow add --provider <name> --region <region>` | Deploy to a specific provider (aws, hetzner, gcp) |
 | `burrow list` | List all active exit nodes |
 | `burrow remove --region <region>` | Tear down an exit node |
 | `burrow remove --all` | Remove all exit nodes |
@@ -89,10 +95,17 @@ burrow/
 │   │   ├── index.ts         # Entry point, registers commands
 │   │   ├── config.ts        # Config load/save (~/.burrow/config.json)
 │   │   ├── manifest.ts      # Node manifest (tracks deployed nodes)
-│   │   ├── terraform.ts     # Embedded Terraform templates + runner
+│   │   ├── terraform.ts     # Terraform runner + generic utilities
 │   │   ├── utils.ts         # Shared utilities
+│   │   ├── providers/
+│   │   │   ├── types.ts     # Provider interface
+│   │   │   ├── registry.ts  # Provider registry (map + lookup)
+│   │   │   ├── index.ts     # Re-exports, triggers registration
+│   │   │   ├── aws.ts       # AWS provider (EC2 + SSM)
+│   │   │   ├── hetzner.ts   # Hetzner Cloud provider
+│   │   │   └── gcp.ts       # GCP provider (Compute Engine)
 │   │   └── commands/
-│   │       ├── init.ts      # Interactive first-time setup
+│   │       ├── init.ts      # Tailscale auth key setup
 │   │       ├── config.ts    # View/update config
 │   │       ├── add.ts       # Deploy an exit node
 │   │       ├── list.ts      # List active nodes
@@ -106,10 +119,11 @@ burrow/
 
 ### Architecture
 
-Burrow is a CLI that wraps Terraform to manage Tailscale exit nodes on AWS. The key design decisions:
+Burrow is a CLI that wraps Terraform to manage Tailscale exit nodes across multiple cloud providers. The key design decisions:
 
-- **Embedded Terraform** — HCL templates are generated in `terraform.ts`, not stored as external files. This makes the CLI fully self-contained.
-- **Runtime AMI lookup** — Ubuntu AMIs are resolved at apply time via AWS SSM Parameter Store, so any AWS region works without a hardcoded AMI map.
+- **Provider interface** — Each cloud provider (AWS, Hetzner, GCP) implements a common `Provider` interface. A registry maps provider names to implementations, so commands dispatch generically instead of with hardcoded provider checks.
+- **Embedded Terraform** — HCL templates are generated per-provider, not stored as external files. This makes the CLI fully self-contained.
+- **Inline credential prompting** — When `burrow add` is called for an unconfigured provider, it prompts for credentials inline and saves them, so `burrow init` only handles Tailscale setup.
 - **State in `~/.burrow/`** — config, manifests, and per-node Terraform state all live under the user's home directory.
 - **Standalone binary** — `bun build --compile` produces a single executable with no runtime dependencies.
 
