@@ -10,6 +10,9 @@ website/node_modules/
 # Build output
 package/burrow
 
+# Docs
+docs/
+
 # Environment
 .env
 
