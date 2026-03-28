@@ -10,7 +10,7 @@
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
 		<title>Burrow — Self-hosted VPN in one command</title>
-		<meta name="description" content="Deploy Tailscale exit nodes to any AWS region. Your cloud, your traffic." />
+		<meta name="description" content="Deploy Tailscale exit nodes to AWS, Hetzner Cloud, or Google Cloud. Your cloud, your traffic." />
 		<style>
 			* { margin: 0; padding: 0; box-sizing: border-box; }
 			body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
@@ -100,7 +100,7 @@
 		<section class="hero">
 			<div class="hero-text">
 				<h1>Self-hosted VPN in one command.</h1>
-				<p>Deploy Tailscale exit nodes to any AWS region. Your cloud, your traffic.</p>
+				<p>Deploy Tailscale exit nodes to AWS, Hetzner Cloud, or Google Cloud. Your cloud, your traffic.</p>
 				<div class="hero-prereqs">Installs <a href="https://developer.hashicorp.com/terraform/install" target="_blank" rel="noopener">Terraform</a> and <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a> if not already present.</div>
 			</div>
 			<div class="install-cmd">
@@ -123,9 +123,12 @@
 						<div style="margin-top:6px"><span class="c">$ burrow add --region us-east-1</span></div>
 						<div><span class="o">Deploying exit node in aws/us-east-1...</span></div>
 						<div><span class="b">&#10003; Exit node deployed: aws/us-east-1</span></div>
-						<div style="margin-top:6px"><span class="c">$ burrow add --region eu-west-1</span></div>
-						<div><span class="o">Deploying exit node in aws/eu-west-1...</span></div>
-						<div><span class="b">&#10003; Exit node deployed: aws/eu-west-1</span></div>
+						<div style="margin-top:6px"><span class="c">$ burrow add --provider hetzner --region fsn1</span></div>
+						<div><span class="o">Deploying exit node in hetzner/fsn1...</span></div>
+						<div><span class="b">&#10003; Exit node deployed: hetzner/fsn1</span></div>
+						<div style="margin-top:6px"><span class="c">$ burrow add --provider gcp --region us-central1-a</span></div>
+						<div><span class="o">Deploying exit node in gcp/us-central1-a...</span></div>
+						<div><span class="b">&#10003; Exit node deployed: gcp/us-central1-a</span></div>
 					</div>
 				</div>
 			</div>
