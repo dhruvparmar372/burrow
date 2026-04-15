@@ -13,7 +13,7 @@ export function createRemoveCommand(): Command {
     .option("--region <region>", "Cloud provider region")
     .option("--provider <provider>", "Cloud provider", "aws")
     .option("--all", "Remove all active exit nodes")
-    .option("--auto-approve", "Skip confirmation prompts")
+    .option("--no-auto-approve", "Require confirmation prompts")
     .option("--json", "Output result as JSON")
     .action(async (opts) => {
       const { provider, region, all, autoApprove, json } = opts;
