@@ -16,7 +16,7 @@ export function createAddCommand(): Command {
     .description("Deploy a new Tailscale exit node")
     .requiredOption("--region <region>", "Cloud provider region")
     .option("--provider <provider>", "Cloud provider", "aws")
-    .option("--auto-approve", "Skip Terraform confirmation prompt")
+    .option("--no-auto-approve", "Require Terraform confirmation prompt")
     .option("--json", "Output result as JSON")
     .action(async (opts) => {
       const { provider: providerName, region, autoApprove, json } = opts;

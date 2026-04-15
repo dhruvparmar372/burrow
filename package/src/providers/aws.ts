@@ -1,4 +1,4 @@
-import { input, password } from "@inquirer/prompts";
+import { input, password, select } from "@inquirer/prompts";
 import type { Provider } from "./types";
 import { registerProvider } from "./registry";
 
@@ -126,6 +126,9 @@ const awsProvider: Provider = {
   },
 
   buildEnvVars(config: Record<string, string>): Record<string, string> {
+    if (config.authMethod === "profile") {
+      return { AWS_PROFILE: config.profile };
+    }
     return {
       AWS_ACCESS_KEY_ID: config.accessKeyId,
       AWS_SECRET_ACCESS_KEY: config.secretAccessKey,
@@ -137,6 +140,23 @@ const awsProvider: Provider = {
   },
 
   async promptForCredentials(existing?: Record<string, string>): Promise<Record<string, string>> {
+    const authMethod = await select({
+      message: "AWS authentication method:",
+      choices: [
+        { name: "AWS Profile (from ~/.aws/credentials)", value: "profile" },
+        { name: "Access Keys (key ID + secret)", value: "keys" },
+      ],
+      default: existing?.authMethod || "profile",
+    });
+
+    if (authMethod === "profile") {
+      const profile = await input({
+        message: "AWS Profile name:",
+        default: existing?.profile || "default",
+      });
+      return { authMethod, profile };
+    }
+
     const accessKeyId = await input({
       message: "AWS Access Key ID:",
       default: existing?.accessKeyId || undefined,
@@ -146,18 +166,26 @@ const awsProvider: Provider = {
       mask: "*",
       default: existing?.secretAccessKey || undefined,
     });
-    return { accessKeyId, secretAccessKey };
+    return { authMethod, accessKeyId, secretAccessKey };
   },
 
   validateConfig(config: Record<string, string>): string[] {
     const errors: string[] = [];
-    if (!config.accessKeyId) errors.push("AWS Access Key ID is required.");
-    if (!config.secretAccessKey) errors.push("AWS Secret Access Key is required.");
+    if (config.authMethod === "profile") {
+      if (!config.profile) errors.push("AWS Profile name is required.");
+    } else {
+      if (!config.accessKeyId) errors.push("AWS Access Key ID is required.");
+      if (!config.secretAccessKey) errors.push("AWS Secret Access Key is required.");
+    }
     return errors;
   },
 
   redactConfig(config: Record<string, string>): Record<string, string> {
+    if (config.authMethod === "profile") {
+      return { authMethod: "profile", profile: config.profile ?? "" };
+    }
     return {
+      authMethod: config.authMethod ?? "keys",
       accessKeyId: redact(config.accessKeyId ?? ""),
       secretAccessKey: redact(config.secretAccessKey ?? ""),
     };
